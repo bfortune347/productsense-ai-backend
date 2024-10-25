@@ -11,6 +11,7 @@
     "start": "node server/index.js"
   },
   "dependencies": {
+    "@libsql/client": "^0.5.6",
     "cors": "^2.8.5",
     "date-fns": "^3.3.1",
     "dotenv": "^16.4.5",
