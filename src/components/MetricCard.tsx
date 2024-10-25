@@ -1,14 +1,8 @@
 import React from 'react';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import type { MetricCard as MetricCardType } from '../types';
 
-interface MetricCardProps {
-  category: string;
-  score: number;
-  change: number;
-  color: string;
-}
-
-export const MetricCard: React.FC<MetricCardProps> = ({ category, score, change, color }) => {
+export const MetricCard: React.FC<MetricCardType> = ({ category, score, change, color }) => {
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm">
       <div className="flex items-center gap-2 mb-2">
@@ -18,7 +12,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({ category, score, change,
       <div className="flex items-end gap-3">
         <span className="text-4xl font-bold">{score}</span>
         <div className={`flex items-center ${change >= 0 ? 'text-green-500' : 'text-red-500'} text-sm mb-1`}>
-          {change >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+          {change >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
           <span>{Math.abs(change)}%</span>
         </div>
       </div>

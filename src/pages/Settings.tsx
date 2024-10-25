@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Video, MessageSquare, Slack } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { Video, MessageSquare, Slack, AlertCircle } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { initiateSlackAuth, handleSlackCallback, checkSlackConnection } from '../services/slack';
 
 interface Integration {
@@ -14,47 +14,73 @@ interface Integration {
 
 export default function Settings() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [integrationStates, setIntegrationStates] = useState({
     slack: false,
     zendesk: true,
     zoom: false
   });
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Check initial connection status
   useEffect(() => {
-    checkSlackConnection().then(connected => {
-      setIntegrationStates(prev => ({ ...prev, slack: connected }));
-    });
-  }, []);
-
-  // Listen for Slack auth success message
-  useEffect(() => {
-    const handleAuthSuccess = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.data.type === 'SLACK_AUTH_SUCCESS') {
-        setIntegrationStates(prev => ({ ...prev, slack: true }));
+    const checkConnections = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const connected = await checkSlackConnection();
+        setIntegrationStates(prev => ({ ...prev, slack: connected }));
+      } catch (err) {
+        setError('Failed to check integration status. Please try again later.');
+        console.error('Error checking connections:', err);
+      } finally {
+        setLoading(false);
       }
     };
 
-    window.addEventListener('message', handleAuthSuccess);
-    return () => window.removeEventListener('message', handleAuthSuccess);
+    checkConnections();
   }, []);
 
   // Handle OAuth callback
   useEffect(() => {
     const code = searchParams.get('code');
-    if (code) {
-      handleSlackCallback(code).then((success) => {
-        if (success) {
-          setIntegrationStates(prev => ({ ...prev, slack: true }));
+    const state = searchParams.get('state');
+
+    if (code && state) {
+      const processOAuth = async () => {
+        try {
+          setError(null);
+          setLoading(true);
+          const success = await handleSlackCallback(code, state);
+          if (success) {
+            setIntegrationStates(prev => ({ ...prev, slack: true }));
+            // Clear URL parameters after successful OAuth
+            navigate('/settings', { replace: true });
+          } else {
+            setError('Failed to connect to Slack. Please try again.');
+          }
+        } catch (err) {
+          setError('Failed to connect to Slack. Please try again.');
+          console.error('OAuth error:', err);
+        } finally {
+          setLoading(false);
         }
-      });
+      };
+
+      processOAuth();
     }
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
   const handleSlackConnect = () => {
     if (!integrationStates.slack) {
-      initiateSlackAuth();
+      try {
+        setError(null);
+        initiateSlackAuth();
+      } catch (err) {
+        setError('Failed to initiate Slack connection. Please try again.');
+        console.error('Slack auth error:', err);
+      }
     }
   };
 
@@ -92,35 +118,49 @@ export default function Settings() {
         <p className="mt-1 text-gray-500">Manage your integrations and preferences</p>
       </div>
 
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 text-red-700">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <p>{error}</p>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm">
         <div className="px-6 py-5 border-b">
           <h3 className="text-lg font-medium text-gray-900">Integrations</h3>
         </div>
-        <div className="divide-y">
-          {integrations.map((integration) => (
-            <div key={integration.id} className="px-6 py-5 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex-shrink-0">
-                  {integration.icon}
+        {loading ? (
+          <div className="px-6 py-8 text-center text-gray-500">
+            Loading integrations...
+          </div>
+        ) : (
+          <div className="divide-y">
+            {integrations.map((integration) => (
+              <div key={integration.id} className="px-6 py-5 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex-shrink-0">
+                    {integration.icon}
+                  </div>
+                  <div>
+                    <h4 className="text-base font-medium text-gray-900">{integration.name}</h4>
+                    <p className="text-sm text-gray-500">{integration.description}</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-base font-medium text-gray-900">{integration.name}</h4>
-                  <p className="text-sm text-gray-500">{integration.description}</p>
-                </div>
+                <button
+                  onClick={integration.onConnect}
+                  className={`btn ${
+                    integration.connected
+                      ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'btn-primary'
+                  }`}
+                  disabled={loading}
+                >
+                  {integration.connected ? 'Connected' : 'Connect'}
+                </button>
               </div>
-              <button
-                onClick={integration.onConnect}
-                className={`btn ${
-                  integration.connected
-                    ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    : 'btn-primary'
-                }`}
-              >
-                {integration.connected ? 'Connected' : 'Connect'}
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </main>
   );

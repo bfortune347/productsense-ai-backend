@@ -8,7 +8,7 @@
   }
   
   body {
-    @apply antialiased text-gray-900 h-full;
+    @apply h-full antialiased text-gray-900;
   }
 
   #root {

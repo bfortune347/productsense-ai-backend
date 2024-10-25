@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const initiateSlackAuth = () => {
   const width = 600;
@@ -7,20 +7,16 @@ export const initiateSlackAuth = () => {
   const top = (window.screen.height / 2) - (height / 2);
 
   const redirectUri = `${window.location.origin}/settings`;
+  const state = Math.random().toString(36).substring(7);
+  
+  // Store state in sessionStorage for verification
+  sessionStorage.setItem('slackOAuthState', state);
+
   const authUrl = new URL('https://slack.com/oauth/v2/authorize');
   authUrl.searchParams.append('client_id', '7454949507506.7864240382710');
+  authUrl.searchParams.append('user_scope', 'channels:history,channels:read');
   authUrl.searchParams.append('redirect_uri', redirectUri);
-  authUrl.searchParams.append('user_scope', [
-    'channels:history',
-    'channels:read',
-    'groups:history',
-    'groups:read',
-    'im:history',
-    'im:read',
-    'mpim:history',
-    'mpim:read',
-    'users:read'
-  ].join(','));
+  authUrl.searchParams.append('state', state);
   
   const popup = window.open(
     authUrl.toString(),
@@ -42,7 +38,15 @@ export const initiateSlackAuth = () => {
   }
 };
 
-export const handleSlackCallback = async (code: string): Promise<boolean> => {
+export const handleSlackCallback = async (code: string, state: string): Promise<boolean> => {
+  const storedState = sessionStorage.getItem('slackOAuthState');
+  
+  if (!storedState || storedState !== state) {
+    throw new Error('Invalid state parameter');
+  }
+  
+  sessionStorage.removeItem('slackOAuthState');
+
   try {
     const response = await fetch(`${API_URL}/slack/oauth`, {
       method: 'POST',
@@ -53,41 +57,30 @@ export const handleSlackCallback = async (code: string): Promise<boolean> => {
         code,
         redirect_uri: `${window.location.origin}/settings`
       }),
-      credentials: 'include'
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error('Failed to exchange code');
     }
 
     const data = await response.json();
-    
-    if (data.success) {
-      localStorage.setItem('slack_connected', 'true');
-      return true;
-    }
-    
-    return false;
+    return data.success;
   } catch (error) {
     console.error('Error connecting Slack:', error);
-    return false;
+    throw error;
   }
 };
 
 export const checkSlackConnection = async (): Promise<boolean> => {
   try {
-    const response = await fetch(`${API_URL}/slack/status`, {
-      credentials: 'include'
-    });
-
+    const response = await fetch(`${API_URL}/slack/status`);
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error('Failed to check connection status');
     }
-
     const data = await response.json();
     return data.connected;
   } catch (error) {
-    console.error('Error checking Slack connection:', error);
-    return false;
+    console.error('Error checking connection:', error);
+    throw error;
   }
 };
