@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { MetricCard } from '../components/MetricCard';
 import { FeedbackList } from '../components/FeedbackList';
 import { TrendChart } from '../components/TrendChart';
 import type { Feedback, MetricCard as MetricCardType } from '../types';
+
+// Rest of your component remains the same
 
 const mockMetrics: MetricCardType[] = [
   { category: 'Security', score: 90, change: 12, color: 'bg-indigo-400' },
