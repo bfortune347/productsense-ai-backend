@@ -65,40 +65,8 @@ async function initDb() {
   }
 }
 
-// Allow all production and development origins
-const allowedOrigins = [
-  'https://warm-babka-f9bd1c.netlify.app',
-  'http://localhost:5173',
-  'http://localhost:3000',
-  // Allow WebContainer domains
-  /^https:\/\/[a-z0-9-]+-oci[0-9]+-[a-z0-9]+-{2,3}[0-9]+--[0-9]+--[a-z0-9-]+\.local-credentialless\.webcontainer-api\.io$/
-];
-
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    const allowed = allowedOrigins.some(allowedOrigin => {
-      if (allowedOrigin instanceof RegExp) {
-        return allowedOrigin.test(origin);
-      }
-      return allowedOrigin === origin;
-    });
-
-    if (allowed) {
-      callback(null, true);
-    } else {
-      console.error('CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// Simplified CORS configuration - allow all origins in development
+app.use(cors());
 
 app.use(express.json());
 
