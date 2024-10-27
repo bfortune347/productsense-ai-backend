@@ -19,6 +19,8 @@ if (missingEnvVars.length > 0) {
 
 // Initialize Turso database client
 console.log('Initializing database connection...');
+console.log('Database URL:', process.env.TURSO_DATABASE_URL);
+
 const db = createClient({
   url: process.env.TURSO_DATABASE_URL,
   authToken: process.env.TURSO_AUTH_TOKEN
@@ -49,6 +51,14 @@ async function initDb() {
       )
     `);
     console.log('Database schema initialized successfully');
+    
+    // Verify table exists
+    const tables = await db.execute(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='oauth_tokens'
+    `);
+    console.log('Verified tables:', tables.rows);
+    
   } catch (error) {
     console.error('Database initialization failed:', error);
     throw error;
@@ -114,6 +124,11 @@ app.get('/api/tokens/test', async (req, res) => {
   try {
     console.log('Testing database connection and retrieving tokens...');
     
+    // First verify connection
+    await db.execute('SELECT 1');
+    console.log('Database connection verified');
+    
+    // Then retrieve tokens
     const result = await db.execute({
       sql: `
         SELECT 
