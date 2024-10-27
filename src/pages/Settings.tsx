@@ -3,6 +3,15 @@ import { Video, MessageSquare, Slack, AlertCircle } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { initiateSlackAuth, handleSlackCallback, checkSlackConnection } from '../services/slack';
 
+interface Token {
+  id: number;
+  provider: string;
+  team_id: string;
+  user_id: string;
+  created_at: string;
+  expires_at: string;
+}
+
 interface Integration {
   id: string;
   name: string;
@@ -15,6 +24,8 @@ interface Integration {
 export default function Settings() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [tokens, setTokens] = useState<Token[]>([]);
+  const [dbStatus, setDbStatus] = useState<string>('unknown');
   const [integrationStates, setIntegrationStates] = useState({
     slack: false,
     zendesk: true,
@@ -22,6 +33,43 @@ export default function Settings() {
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Test database connection on load
+  useEffect(() => {
+    const testDatabase = async () => {
+      try {
+        console.log('Testing database connection...');
+        const response = await fetch('https://productsense-ai-backend.onrender.com/api/tokens/test', {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Database response:', data);
+        
+        if (data.success) {
+          setTokens(data.tokens);
+          setDbStatus('connected');
+          console.log('Database test successful:', data);
+        } else {
+          setDbStatus('error');
+          setError(data.error || 'Database test failed');
+        }
+      } catch (err) {
+        console.error('Database test error:', err);
+        setDbStatus('error');
+        setError(err instanceof Error ? err.message : 'Failed to connect to database');
+      }
+    };
+
+    testDatabase();
+  }, []);
 
   // Check initial connection status
   useEffect(() => {
@@ -116,6 +164,7 @@ export default function Settings() {
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
         <p className="mt-1 text-gray-500">Manage your integrations and preferences</p>
+        <p className="mt-1 text-sm text-gray-500">Database Status: {dbStatus}</p>
       </div>
 
       {error && (
@@ -162,6 +211,31 @@ export default function Settings() {
           </div>
         )}
       </div>
+
+      {tokens.length > 0 && (
+        <div className="mt-8 bg-white rounded-xl shadow-sm">
+          <div className="px-6 py-5 border-b">
+            <h3 className="text-lg font-medium text-gray-900">Active Tokens</h3>
+          </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              {tokens.map((token) => (
+                <div key={token.id} className="flex justify-between items-center">
+                  <div>
+                    <p className="font-medium">{token.provider}</p>
+                    <p className="text-sm text-gray-500">Team: {token.team_id}</p>
+                    <p className="text-sm text-gray-500">User: {token.user_id}</p>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    <p>Created: {new Date(token.created_at).toLocaleDateString()}</p>
+                    <p>Expires: {new Date(token.expires_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

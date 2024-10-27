@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+const API_URL = 'https://productsense-ai-backend.onrender.com';
 
 export const initiateSlackAuth = () => {
   const width = 600;
@@ -48,7 +48,7 @@ export const handleSlackCallback = async (code: string, state: string): Promise<
   sessionStorage.removeItem('slackOAuthState');
 
   try {
-    const response = await fetch(`${API_URL}/slack/oauth`, {
+    const response = await fetch(`${API_URL}/api/slack/oauth`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -73,7 +73,7 @@ export const handleSlackCallback = async (code: string, state: string): Promise<
 
 export const checkSlackConnection = async (): Promise<boolean> => {
   try {
-    const response = await fetch(`${API_URL}/slack/status`);
+    const response = await fetch(`${API_URL}/api/slack/status`);
     if (!response.ok) {
       throw new Error('Failed to check connection status');
     }
