@@ -9,13 +9,9 @@ export const initiateSlackAuth = () => {
   const state = Math.random().toString(36).substring(7);
   sessionStorage.setItem('slackOAuthState', state);
 
-  // Create a promise that will resolve when the OAuth flow completes
-  const authPromise = new Promise((resolve, reject) => {
-    let popupClosed = false;
-
+  return new Promise((resolve, reject) => {
     // Function to handle the OAuth callback
     const handleCallback = async (event: MessageEvent) => {
-      // Verify origin
       if (event.origin !== window.location.origin) return;
 
       try {
@@ -34,7 +30,7 @@ export const initiateSlackAuth = () => {
           },
           body: JSON.stringify({ 
             code,
-            redirect_uri: `${window.location.origin}/slack/callback`
+            redirect_uri: `${window.location.origin}/slack/callback.html`
           }),
         });
 
@@ -51,14 +47,14 @@ export const initiateSlackAuth = () => {
       }
     };
 
-    // Add message listener
+    // Add message listener before opening popup
     window.addEventListener('message', handleCallback);
 
     // Open popup
     const authUrl = new URL('https://slack.com/oauth/v2/authorize');
     authUrl.searchParams.append('client_id', '7454949507506.7864240382710');
     authUrl.searchParams.append('user_scope', 'channels:history,channels:read');
-    authUrl.searchParams.append('redirect_uri', `${window.location.origin}/slack/callback`);
+    authUrl.searchParams.append('redirect_uri', `${window.location.origin}/slack/callback.html`);
     authUrl.searchParams.append('state', state);
     
     const popup = window.open(
@@ -67,24 +63,21 @@ export const initiateSlackAuth = () => {
       `width=${width},height=${height},left=${left},top=${top}`
     );
 
-    // Check if popup was blocked
     if (!popup) {
-      reject(new Error('Popup was blocked'));
+      window.removeEventListener('message', handleCallback);
+      reject(new Error('Failed to open popup. Please allow popups for this site.'));
       return;
     }
 
     // Poll popup state
     const pollTimer = setInterval(() => {
-      if (popup.closed && !popupClosed) {
-        popupClosed = true;
+      if (popup.closed) {
         clearInterval(pollTimer);
-        reject(new Error('Authentication cancelled'));
         window.removeEventListener('message', handleCallback);
+        reject(new Error('Authentication cancelled'));
       }
     }, 500);
   });
-
-  return authPromise;
 };
 
 export const checkSlackConnection = async (): Promise<boolean> => {

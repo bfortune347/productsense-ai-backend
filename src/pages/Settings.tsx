@@ -106,8 +106,8 @@ export default function Settings() {
           }
         }
       } catch (err) {
-        setError('Failed to connect to Slack. Please try again.');
         console.error('Slack auth error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to connect to Slack');
       } finally {
         setLoading(false);
       }
