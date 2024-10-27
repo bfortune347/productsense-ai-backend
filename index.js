@@ -105,7 +105,7 @@ app.post('/api/slack/oauth', async (req, res) => {
   const { code, redirect_uri } = req.body;
   
   try {
-    console.log('Starting OAuth exchange...');
+    console.log('Starting OAuth exchange with code:', code);
     
     const params = new URLSearchParams({
       client_id: process.env.SLACK_CLIENT_ID,
@@ -130,8 +130,24 @@ app.post('/api/slack/oauth', async (req, res) => {
       throw new Error(data.error || 'Failed to exchange code');
     }
 
+    // Extract required data from the OAuth response
+    const {
+      access_token,
+      scope,
+      team,
+      authed_user,
+      bot_token
+    } = data;
+
+    // Verify we have all required data
+    if (!access_token || !scope || !team?.id || !authed_user?.id) {
+      throw new Error('Missing required data from Slack OAuth response');
+    }
+
+    console.log('Storing token in database...');
+    
     // Store token in database with proper data structure
-    await db.execute({
+    const result = await db.execute({
       sql: `
         INSERT INTO oauth_tokens (
           provider,
@@ -150,16 +166,22 @@ app.post('/api/slack/oauth', async (req, res) => {
       `,
       args: [
         'slack',
-        data.access_token,
-        data.bot_token || null,
-        data.scope,
-        data.team.id,
-        data.authed_user.id
+        access_token,
+        bot_token || null,
+        scope,
+        team.id,
+        authed_user.id
       ]
     });
 
+    console.log('Database insert result:', result);
     console.log('Slack token stored successfully');
-    res.json({ success: true });
+    
+    res.json({ 
+      success: true,
+      team: team.id,
+      user: authed_user.id
+    });
   } catch (error) {
     console.error('Error in Slack OAuth flow:', error);
     res.status(500).json({ 
