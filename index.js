@@ -83,19 +83,64 @@ app.use(cors({
 
 app.use(express.json());
 
-// Health check endpoint with database status
+// Health check endpoint with database status and token count
 app.get('/health', async (req, res) => {
   try {
+    // Test basic connection
     await db.execute('SELECT 1');
+    
+    // Get token count
+    const result = await db.execute({
+      sql: 'SELECT COUNT(*) as count FROM oauth_tokens WHERE expires_at > datetime("now")'
+    });
+    
     res.json({ 
       status: 'healthy',
-      database: 'connected'
+      database: 'connected',
+      activeTokens: result.rows[0].count
     });
   } catch (error) {
+    console.error('Health check failed:', error);
     res.status(500).json({ 
       status: 'unhealthy',
       database: 'disconnected',
       error: error.message
+    });
+  }
+});
+
+// Test endpoint to list all tokens
+app.get('/api/tokens/test', async (req, res) => {
+  try {
+    console.log('Testing database connection and retrieving tokens...');
+    
+    const result = await db.execute({
+      sql: `
+        SELECT 
+          id,
+          provider,
+          team_id,
+          user_id,
+          created_at,
+          expires_at
+        FROM oauth_tokens 
+        WHERE expires_at > datetime('now')
+        ORDER BY created_at DESC
+      `
+    });
+    
+    console.log('Retrieved tokens:', result.rows);
+    
+    res.json({ 
+      success: true,
+      tokens: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('Error testing database:', error);
+    res.status(500).json({ 
+      error: 'Database test failed',
+      details: error.message
     });
   }
 });
@@ -207,7 +252,7 @@ app.get('/api/slack/status', async (req, res) => {
     const connected = result.rows[0].count > 0;
     res.json({ connected });
   } catch (error) {
-    console.error('Error checking Slack connection:', error);
+    console.error('Error checking connection:', error);
     res.status(500).json({ 
       error: 'Failed to check connection status',
       details: error.message 
