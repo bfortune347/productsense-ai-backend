@@ -11,6 +11,12 @@ interface Token {
   expires_at: string;
 }
 
+interface DatabaseResponse {
+  success: boolean;
+  tokens: Token[];
+  count: number;
+}
+
 interface Integration {
   id: string;
   name: string;
@@ -47,7 +53,7 @@ export default function Settings() {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const data = await response.json();
+        const data = await response.json() as DatabaseResponse;
         console.log('Database response:', data);
         
         if (data.success) {
@@ -56,7 +62,7 @@ export default function Settings() {
           console.log('Database test successful:', data);
         } else {
           setDbStatus('error');
-          setError(data.error || 'Database test failed');
+          setError('Database test failed');
         }
       } catch (err) {
         console.error('Database test error:', err);
@@ -100,7 +106,7 @@ export default function Settings() {
           setIntegrationStates(prev => ({ ...prev, slack: true }));
           // Refresh tokens list
           const response = await fetch('https://productsense-ai-backend.onrender.com/api/tokens/test');
-          const data = await response.json();
+          const data = await response.json() as DatabaseResponse;
           if (data.success) {
             setTokens(data.tokens);
           }
