@@ -2,6 +2,43 @@
 <html>
 <head>
   <title>Slack OAuth Callback</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background-color: #f9fafb;
+      color: #111827;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+      background: white;
+      border-radius: 0.75rem;
+      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    }
+    .success {
+      color: #059669;
+      margin-bottom: 1rem;
+    }
+    .button {
+      background-color: #4f46e5;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem;
+      border: none;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    .button:hover {
+      background-color: #4338ca;
+    }
+  </style>
   <script>
     window.onload = function() {
       console.log('Callback page loaded');
@@ -16,21 +53,37 @@
           console.log('Attempting to send message to opener');
           window.opener.postMessage({ code, state }, window.location.origin);
           console.log('Message sent to opener');
+          
+          // Show success message instead of closing
+          document.getElementById('status').textContent = 'Authentication successful!';
+          document.getElementById('message').textContent = 'You can now close this window and return to the app.';
+          document.getElementById('closeButton').style.display = 'block';
         } catch (e) {
           console.error('Failed to send message to opener:', e);
+          document.getElementById('status').textContent = 'Authentication Error';
+          document.getElementById('message').textContent = 'Failed to communicate with the main window. Please try again.';
+          document.getElementById('closeButton').style.display = 'block';
         }
-        // Add a small delay before closing to ensure the message is sent
-        setTimeout(() => {
-          window.close();
-        }, 1000);
       } else {
         console.log('No opener found');
-        document.body.innerHTML = 'Authentication complete. You can close this window.';
+        document.getElementById('status').textContent = 'Authentication Error';
+        document.getElementById('message').textContent = 'Window opener not found. Please try again.';
+        document.getElementById('closeButton').style.display = 'block';
       }
     };
+
+    function closeWindow() {
+      window.close();
+    }
   </script>
 </head>
 <body>
-  <p>Completing authentication...</p>
+  <div class="container">
+    <h2 id="status" class="success">Processing authentication...</h2>
+    <p id="message">Please wait while we complete the authentication process.</p>
+    <button id="closeButton" class="button" onclick="closeWindow()" style="display: none;">
+      Close Window
+    </button>
+  </div>
 </body>
 </html>
