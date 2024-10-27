@@ -1,6 +1,12 @@
 const API_URL = 'https://productsense-ai-backend.onrender.com';
 
-export const initiateSlackAuth = () => {
+interface SlackAuthResponse {
+  success: boolean;
+  team?: string;
+  user?: string;
+}
+
+export const initiateSlackAuth = (): Promise<SlackAuthResponse> => {
   const width = 600;
   const height = 800;
   const left = (window.screen.width / 2) - (width / 2);
@@ -38,7 +44,7 @@ export const initiateSlackAuth = () => {
           throw new Error('Failed to exchange code');
         }
 
-        const data = await response.json();
+        const data = await response.json() as SlackAuthResponse;
         resolve(data);
       } catch (error) {
         reject(error);
@@ -86,7 +92,7 @@ export const checkSlackConnection = async (): Promise<boolean> => {
     if (!response.ok) {
       throw new Error('Failed to check connection status');
     }
-    const data = await response.json();
+    const data = await response.json() as { connected: boolean };
     return data.connected;
   } catch (error) {
     console.error('Error checking connection:', error);
