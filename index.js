@@ -17,8 +17,6 @@ if (missingEnvVars.length > 0) {
   process.exit(1);
 }
 
-console.log('Database URL:', process.env.TURSO_DATABASE_URL);
-
 // Initialize Turso database client
 console.log('Initializing database connection...');
 const db = createClient({
@@ -32,7 +30,8 @@ async function initDb() {
     console.log('Testing database connection...');
     
     // Test connection with a simple query
-    await db.execute('SELECT 1');
+    const testResult = await db.execute('SELECT 1 as test');
+    console.log('Database connection test result:', testResult);
     console.log('Database connection successful!');
 
     console.log('Creating tables if they don\'t exist...');
@@ -74,17 +73,20 @@ app.use(express.json());
 app.get('/health', async (req, res) => {
   try {
     // Test basic connection
-    await db.execute('SELECT 1');
+    const testResult = await db.execute('SELECT 1 as test');
+    console.log('Health check test result:', testResult);
     
     // Get token count
-    const result = await db.execute({
+    const countResult = await db.execute({
       sql: 'SELECT COUNT(*) as count FROM oauth_tokens WHERE expires_at > datetime("now")'
     });
+    
+    const count = countResult.rows?.[0]?.count ?? 0;
     
     res.json({ 
       status: 'healthy',
       database: 'connected',
-      activeTokens: result.rows[0].count
+      activeTokens: count
     });
   } catch (error) {
     console.error('Health check failed:', error);
@@ -102,35 +104,36 @@ app.get('/api/tokens/test', async (req, res) => {
     console.log('Testing database connection and retrieving tokens...');
     
     // First verify connection
-    await db.execute('SELECT 1');
-    console.log('Database connection verified');
+    const testResult = await db.execute('SELECT 1 as test');
+    console.log('Database connection verified:', testResult);
     
     // Then retrieve tokens
-    const result = await db.execute({
-      sql: `
-        SELECT 
-          id,
-          provider,
-          team_id,
-          user_id,
-          created_at,
-          expires_at
-        FROM oauth_tokens 
-        WHERE expires_at > datetime('now')
-        ORDER BY created_at DESC
-      `
-    });
+    const tokensResult = await db.execute(`
+      SELECT 
+        id,
+        provider,
+        team_id,
+        user_id,
+        created_at,
+        expires_at
+      FROM oauth_tokens 
+      WHERE expires_at > datetime('now')
+      ORDER BY created_at DESC
+    `);
     
-    console.log('Retrieved tokens:', result.rows);
+    // Ensure we have a valid result
+    const tokens = tokensResult.rows ?? [];
+    console.log('Retrieved tokens:', tokens);
     
     res.json({ 
       success: true,
-      tokens: result.rows,
-      count: result.rows.length
+      tokens,
+      count: tokens.length
     });
   } catch (error) {
     console.error('Error testing database:', error);
     res.status(500).json({ 
+      success: false,
       error: 'Database test failed',
       details: error.message
     });
@@ -200,6 +203,7 @@ app.post('/api/slack/oauth', async (req, res) => {
           bot_token = excluded.bot_token,
           scope = excluded.scope,
           expires_at = excluded.expires_at
+        RETURNING id
       `,
       args: [
         'slack',
@@ -222,6 +226,7 @@ app.post('/api/slack/oauth', async (req, res) => {
   } catch (error) {
     console.error('Error in Slack OAuth flow:', error);
     res.status(500).json({ 
+      success: false,
       error: 'Failed to complete OAuth flow',
       details: error.message
     });
@@ -241,11 +246,14 @@ app.get('/api/slack/status', async (req, res) => {
       args: ['slack']
     });
     
-    const connected = result.rows[0].count > 0;
+    const count = result.rows?.[0]?.count ?? 0;
+    const connected = count > 0;
+    
     res.json({ connected });
   } catch (error) {
     console.error('Error checking connection:', error);
     res.status(500).json({ 
+      success: false,
       error: 'Failed to check connection status',
       details: error.message 
     });
