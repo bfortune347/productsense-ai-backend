@@ -6,69 +6,85 @@ export const initiateSlackAuth = () => {
   const left = (window.screen.width / 2) - (width / 2);
   const top = (window.screen.height / 2) - (height / 2);
 
-  const redirectUri = `${window.location.origin}/settings`;
   const state = Math.random().toString(36).substring(7);
-  
-  // Store state in sessionStorage for verification
   sessionStorage.setItem('slackOAuthState', state);
 
-  const authUrl = new URL('https://slack.com/oauth/v2/authorize');
-  authUrl.searchParams.append('client_id', '7454949507506.7864240382710');
-  authUrl.searchParams.append('user_scope', 'channels:history,channels:read');
-  authUrl.searchParams.append('redirect_uri', redirectUri);
-  authUrl.searchParams.append('state', state);
-  
-  const popup = window.open(
-    authUrl.toString(),
-    'SlackAuth',
-    `width=${width},height=${height},left=${left},top=${top}`
-  );
+  // Create a promise that will resolve when the OAuth flow completes
+  const authPromise = new Promise((resolve, reject) => {
+    let popupClosed = false;
 
-  if (popup) {
-    const checkPopup = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkPopup);
-        checkSlackConnection().then(connected => {
-          if (connected) {
-            window.location.reload();
-          }
+    // Function to handle the OAuth callback
+    const handleCallback = async (event: MessageEvent) => {
+      // Verify origin
+      if (event.origin !== window.location.origin) return;
+
+      try {
+        const { code, state: returnedState } = event.data;
+        
+        if (!code || !returnedState) return;
+        if (returnedState !== state) {
+          throw new Error('Invalid state parameter');
+        }
+
+        // Exchange code for token
+        const response = await fetch(`${API_URL}/api/slack/oauth`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            code,
+            redirect_uri: `${window.location.origin}/slack/callback`
+          }),
         });
+
+        if (!response.ok) {
+          throw new Error('Failed to exchange code');
+        }
+
+        const data = await response.json();
+        resolve(data);
+      } catch (error) {
+        reject(error);
+      } finally {
+        window.removeEventListener('message', handleCallback);
       }
-    }, 500);
-  }
-};
+    };
 
-export const handleSlackCallback = async (code: string, state: string): Promise<boolean> => {
-  const storedState = sessionStorage.getItem('slackOAuthState');
-  
-  if (!storedState || storedState !== state) {
-    throw new Error('Invalid state parameter');
-  }
-  
-  sessionStorage.removeItem('slackOAuthState');
+    // Add message listener
+    window.addEventListener('message', handleCallback);
 
-  try {
-    const response = await fetch(`${API_URL}/api/slack/oauth`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        code,
-        redirect_uri: `${window.location.origin}/settings`
-      }),
-    });
+    // Open popup
+    const authUrl = new URL('https://slack.com/oauth/v2/authorize');
+    authUrl.searchParams.append('client_id', '7454949507506.7864240382710');
+    authUrl.searchParams.append('user_scope', 'channels:history,channels:read');
+    authUrl.searchParams.append('redirect_uri', `${window.location.origin}/slack/callback`);
+    authUrl.searchParams.append('state', state);
+    
+    const popup = window.open(
+      authUrl.toString(),
+      'SlackAuth',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
 
-    if (!response.ok) {
-      throw new Error('Failed to exchange code');
+    // Check if popup was blocked
+    if (!popup) {
+      reject(new Error('Popup was blocked'));
+      return;
     }
 
-    const data = await response.json();
-    return data.success;
-  } catch (error) {
-    console.error('Error connecting Slack:', error);
-    throw error;
-  }
+    // Poll popup state
+    const pollTimer = setInterval(() => {
+      if (popup.closed && !popupClosed) {
+        popupClosed = true;
+        clearInterval(pollTimer);
+        reject(new Error('Authentication cancelled'));
+        window.removeEventListener('message', handleCallback);
+      }
+    }, 500);
+  });
+
+  return authPromise;
 };
 
 export const checkSlackConnection = async (): Promise<boolean> => {

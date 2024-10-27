@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Video, MessageSquare, Slack, AlertCircle } from 'lucide-react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { initiateSlackAuth, handleSlackCallback, checkSlackConnection } from '../services/slack';
+import { initiateSlackAuth, checkSlackConnection } from '../services/slack';
 
 interface Token {
   id: number;
@@ -22,15 +21,13 @@ interface Integration {
 }
 
 export default function Settings() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const [tokens, setTokens] = useState<Token[]>([]);
-  const [dbStatus, setDbStatus] = useState<string>('unknown');
   const [integrationStates, setIntegrationStates] = useState({
     slack: false,
     zendesk: true,
     zoom: false
   });
+  const [tokens, setTokens] = useState<Token[]>([]);
+  const [dbStatus, setDbStatus] = useState<string>('unknown');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -90,44 +87,29 @@ export default function Settings() {
     checkConnections();
   }, []);
 
-  // Handle OAuth callback
-  useEffect(() => {
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-
-    if (code && state) {
-      const processOAuth = async () => {
-        try {
-          setError(null);
-          setLoading(true);
-          const success = await handleSlackCallback(code, state);
-          if (success) {
-            setIntegrationStates(prev => ({ ...prev, slack: true }));
-            // Clear URL parameters after successful OAuth
-            navigate('/settings', { replace: true });
-          } else {
-            setError('Failed to connect to Slack. Please try again.');
-          }
-        } catch (err) {
-          setError('Failed to connect to Slack. Please try again.');
-          console.error('OAuth error:', err);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      processOAuth();
-    }
-  }, [searchParams, navigate]);
-
-  const handleSlackConnect = () => {
+  const handleSlackConnect = async () => {
     if (!integrationStates.slack) {
       try {
         setError(null);
-        initiateSlackAuth();
+        setLoading(true);
+        
+        // Initiate OAuth flow
+        const result = await initiateSlackAuth();
+        
+        if (result.success) {
+          setIntegrationStates(prev => ({ ...prev, slack: true }));
+          // Refresh tokens list
+          const response = await fetch('https://productsense-ai-backend.onrender.com/api/tokens/test');
+          const data = await response.json();
+          if (data.success) {
+            setTokens(data.tokens);
+          }
+        }
       } catch (err) {
-        setError('Failed to initiate Slack connection. Please try again.');
+        setError('Failed to connect to Slack. Please try again.');
         console.error('Slack auth error:', err);
+      } finally {
+        setLoading(false);
       }
     }
   };
