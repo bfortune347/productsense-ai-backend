@@ -39,12 +39,13 @@ async function initDb() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         provider TEXT NOT NULL,
         access_token TEXT NOT NULL,
+        bot_token TEXT,
         scope TEXT NOT NULL,
         team_id TEXT,
         user_id TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME NOT NULL,
-        UNIQUE(provider, user_id)
+        UNIQUE(provider, team_id, user_id)
       )
     `);
     console.log('Database schema initialized successfully');
@@ -104,6 +105,8 @@ app.post('/api/slack/oauth', async (req, res) => {
   const { code, redirect_uri } = req.body;
   
   try {
+    console.log('Starting OAuth exchange...');
+    
     const params = new URLSearchParams({
       client_id: process.env.SLACK_CLIENT_ID,
       client_secret: process.env.SLACK_CLIENT_SECRET,
@@ -120,34 +123,37 @@ app.post('/api/slack/oauth', async (req, res) => {
     });
 
     const data = await response.json();
+    console.log('Slack OAuth response:', JSON.stringify(data, null, 2));
 
     if (!data.ok) {
       console.error('Slack OAuth error:', data.error);
       throw new Error(data.error || 'Failed to exchange code');
     }
 
-    // Store token in database
+    // Store token in database with proper data structure
     await db.execute({
       sql: `
         INSERT INTO oauth_tokens (
           provider,
           access_token,
+          bot_token,
           scope,
           team_id,
           user_id,
           expires_at
-        ) VALUES (?, ?, ?, ?, ?, datetime('now', '+90 days'))
-        ON CONFLICT(provider, user_id) DO UPDATE SET
+        ) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+90 days'))
+        ON CONFLICT(provider, team_id, user_id) DO UPDATE SET
           access_token = excluded.access_token,
+          bot_token = excluded.bot_token,
           scope = excluded.scope,
-          team_id = excluded.team_id,
           expires_at = excluded.expires_at
       `,
       args: [
         'slack',
-        data.authed_user.access_token,
-        data.authed_user.scope,
-        data.team?.id || null,
+        data.access_token,
+        data.bot_token || null,
+        data.scope,
+        data.team.id,
         data.authed_user.id
       ]
     });
