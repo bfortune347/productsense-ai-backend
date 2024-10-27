@@ -16,17 +16,31 @@ export const initiateSlackAuth = (): Promise<SlackAuthResponse> => {
   sessionStorage.setItem('slackOAuthState', state);
 
   return new Promise((resolve, reject) => {
+    let messageReceived = false;
+    
     // Function to handle the OAuth callback
     const handleCallback = async (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+      console.log('Received postMessage event:', event);
+      
+      if (event.origin !== window.location.origin) {
+        console.log('Ignoring message from different origin:', event.origin);
+        return;
+      }
 
       try {
         const { code, state: returnedState } = event.data;
+        console.log('Received OAuth data:', { code: !!code, state: returnedState });
         
-        if (!code || !returnedState) return;
+        if (!code || !returnedState) {
+          console.log('Missing code or state in response');
+          return;
+        }
+
         if (returnedState !== state) {
           throw new Error('Invalid state parameter');
         }
+
+        messageReceived = true;
 
         // Exchange code for token
         const response = await fetch(`${API_URL}/api/slack/oauth`, {
@@ -47,6 +61,7 @@ export const initiateSlackAuth = (): Promise<SlackAuthResponse> => {
         const data = await response.json() as SlackAuthResponse;
         resolve(data);
       } catch (error) {
+        console.error('Error in OAuth callback:', error);
         reject(error);
       } finally {
         window.removeEventListener('message', handleCallback);
@@ -77,10 +92,12 @@ export const initiateSlackAuth = (): Promise<SlackAuthResponse> => {
 
     // Poll popup state
     const pollTimer = setInterval(() => {
-      if (popup.closed) {
+      if (!popup || popup.closed) {
         clearInterval(pollTimer);
         window.removeEventListener('message', handleCallback);
-        reject(new Error('Authentication cancelled'));
+        if (!messageReceived) {
+          reject(new Error('Authentication cancelled or popup closed'));
+        }
       }
     }, 500);
   });

@@ -4,18 +4,27 @@
   <title>Slack OAuth Callback</title>
   <script>
     window.onload = function() {
+      console.log('Callback page loaded');
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
       const state = urlParams.get('state');
+      
+      console.log('Retrieved params:', { code: !!code, state });
 
       if (window.opener) {
         try {
+          console.log('Attempting to send message to opener');
           window.opener.postMessage({ code, state }, window.location.origin);
+          console.log('Message sent to opener');
         } catch (e) {
           console.error('Failed to send message to opener:', e);
         }
-        window.close();
+        // Add a small delay before closing to ensure the message is sent
+        setTimeout(() => {
+          window.close();
+        }, 1000);
       } else {
+        console.log('No opener found');
         document.body.innerHTML = 'Authentication complete. You can close this window.';
       }
     };
